@@ -1,7 +1,18 @@
-.venv/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+venv/
+
+# Data & models (optionnel)
+data/
+model/
 *.pkl
-data/*.csv
-.env
+
+# OS / IDE
 .vscode/
+.DS_Store
