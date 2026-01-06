@@ -1,64 +1,128 @@
-import os
-import joblib
+from pathlib import Path
 import pandas as pd
+import joblib
+
+import mlflow
+import mlflow.sklearn
+
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
 
-RANDOM_STATE = 42
 
-def make_dataset(n: int = 2000) -> pd.DataFrame:
-    rng = pd.Series(range(n))
+# ---------- Paths ----------
+APP_DIR = Path(__file__).resolve().parent
+DATA_PATH = APP_DIR / "data" / "churn.csv"
+MODEL_DIR = APP_DIR / "model"
+MODEL_PATH = MODEL_DIR / "model.pkl"
 
-    age = (18 + (rng * 7) % 60).astype(int)
-    credit_score = (300 + (rng * 13) % 551).astype(int)
-    balance = ((rng * 231) % 200000).astype(float)
-    tenure = ((rng * 3) % 11).astype(int)
-    products = (1 + (rng * 5) % 4).astype(int)
-    is_active = ((rng * 17) % 2).astype(int)
+MODEL_DIR.mkdir(exist_ok=True)
 
-    churn = (
-        (credit_score < 500).astype(int)
-        | ((balance > 120000) & (is_active == 0)).astype(int)
-        | ((age > 55) & (products == 1)).astype(int)
-    ).astype(int)
 
-    return pd.DataFrame({
-        "age": age,
-        "credit_score": credit_score,
-        "balance": balance,
-        "tenure": tenure,
-        "products": products,
-        "is_active": is_active,
-        "churn": churn
-    })
+# ---------- Config ----------
+FEATURES_ORDER = ["age", "credit_score", "balance", "tenure", "products", "is_active"]
 
-def main():
-    os.makedirs("data", exist_ok=True)
-    os.makedirs("model", exist_ok=True)
+# Cherche automatiquement la colonne target (label)
+POSSIBLE_TARGETS = ["churn", "Exited", "exit", "target", "label", "Churn"]
 
-    df = make_dataset(n=2000)
-    df.to_csv("data/churn.csv", index=False)
 
-    X = df.drop(columns=["churn"])
-    y = df["churn"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
+def find_target_column(df: pd.DataFrame) -> str:
+    for col in POSSIBLE_TARGETS:
+        if col in df.columns:
+            return col
+    raise ValueError(
+        "Impossible de trouver la colonne cible (label) dans churn.csv.\n"
+        f"Colonnes trouvées: {list(df.columns)}\n"
+        "Ajoute une colonne 'churn' (0/1) ou renomme ta colonne cible."
     )
 
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train, y_train)
 
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
+def main():
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Fichier introuvable: {DATA_PATH}")
 
-    joblib.dump(model, "model/model.pkl")
+    df = pd.read_csv(DATA_PATH)
 
-    print("✅ Dataset saved to: data/churn.csv")
-    print("✅ Model saved to: model/model.pkl")
-    print(f"✅ Test accuracy: {acc:.4f}")
-    print("✅ Features order:", list(X.columns))
+    # 1) Target
+    target_col = find_target_column(df)
+
+    # 2) Vérifier que les features existent
+    missing = [c for c in FEATURES_ORDER if c not in df.columns]
+    if missing:
+        raise ValueError(
+            "Il manque des colonnes features dans churn.csv:\n"
+            f"{missing}\n"
+            f"Colonnes actuelles: {list(df.columns)}"
+        )
+
+    X = df[FEATURES_ORDER].copy()
+    y = df[target_col].copy()
+
+    # (optionnel) s'assurer que y est bien 0/1
+    # si y est "Yes/No" par exemple, tu peux adapter ici
+    if y.dtype == "object":
+        y = y.map({"yes": 1, "no": 0, "Yes": 1, "No": 0}).fillna(y)
+    y = y.astype(int)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y if y.nunique() == 2 else None
+    )
+
+    # 3) Modèle (Pipeline = scaler + logistic regression)
+    model = Pipeline(steps=[
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(max_iter=1000))
+    ])
+
+    # ---------- MLflow ----------
+    mlflow.set_experiment("bank-churn")
+
+    with mlflow.start_run():
+        # log params
+        mlflow.log_param("model", "LogisticRegression")
+        mlflow.log_param("features", ",".join(FEATURES_ORDER))
+        mlflow.log_param("test_size", 0.2)
+        mlflow.log_param("random_state", 42)
+
+        # ✅ entraîner le modèle
+        model.fit(X_train, y_train)
+
+        # ✅ prédire
+        y_pred = model.predict(X_test)
+
+        # ✅ métriques
+        acc = accuracy_score(y_test, y_pred)
+        mlflow.log_metric("accuracy", acc)
+
+        # roc_auc (si possible)
+        if y.nunique() == 2:
+            y_proba = model.predict_proba(X_test)[:, 1]
+            auc = roc_auc_score(y_test, y_proba)
+            mlflow.log_metric("roc_auc", auc)
+
+        # confusion matrix (artifact)
+        cm = confusion_matrix(y_test, y_pred)
+        cm_path = APP_DIR / "confusion_matrix.txt"
+        cm_path.write_text(str(cm), encoding="utf-8")
+        mlflow.log_artifact(str(cm_path))
+
+        # log model dans MLflow
+        mlflow.sklearn.log_model(model, "model")
+
+        # ✅ sauver le modèle pour l’API (model/model.pkl)
+        joblib.dump(model, MODEL_PATH)
+
+        print("✅ Training terminé")
+        print(f"✅ Modèle sauvegardé: {MODEL_PATH}")
+        print(f"✅ Accuracy: {acc:.4f}")
+        if y.nunique() == 2:
+            print(f"✅ ROC_AUC: {auc:.4f}")
+
 
 if __name__ == "__main__":
     main()

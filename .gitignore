@@ -16,3 +16,5 @@ model/
 # OS / IDE
 .vscode/
 .DS_Store
+mlruns/
+mlflow.db
