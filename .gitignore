@@ -16,5 +16,7 @@ model/
 # OS / IDE
 .vscode/
 .DS_Store
+# MLflow (ne pas versionner)
 mlruns/
 mlflow.db
+*.db
