@@ -37,14 +37,17 @@ Le modèle est entraîné localement puis sauvegardé afin d’être chargé par
 ## Swagger
  - La documentation Swagger est accessible à l’adresse suivante :
 🔗 Swagger UI
+
 https://churn-api-ines-060126.azurewebsites.net/docs
 
 ---
 ##  Déploiement Azure
  - URL publique de l’application
 🔗 Application Web
+
 https://churn-api-ines-060126.azurewebsites.net
 🔗 Health Check
+
 https://churn-api-ines-060126.azurewebsites.net/health
 
 ---
@@ -65,6 +68,7 @@ Une interface web simple permet de tester les prédictions :
  - Affichage du risque de churn et de la probabilité
 
 🔗 Interface Web
+
 https://churn-api-ines-060126.azurewebsites.net
 
 
