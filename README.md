@@ -81,7 +81,22 @@ https://churn-api-ines-060126.azurewebsites.net
  - Test /predict via interface web
  - Test Docker local
  - Test déploiement Azure
+---
+### MLflow (Local)
 
+Dans ce projet, MLflow est utilisé **en local** pour tracker les expérimentations du modèle :
+- paramètres (type de modèle, test_size, etc.)
+- métriques (accuracy, f1, precision, recall, roc_auc)
+- artifacts (confusion_matrix.txt, classification_report.txt)
+- modèle ML (loggé dans MLflow)
+
+Commande utilisée :
+
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
+
+
+Accès :[
+http://127.0.0.1:5001
    ---
    Étudiante : Ines Elouaer
    Établissement : Polytech Sousse
