@@ -9,7 +9,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 
 
 # ---------- Paths ----------
@@ -17,9 +25,9 @@ APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = APP_DIR / "data" / "churn.csv"
 MODEL_DIR = APP_DIR / "model"
 MODEL_PATH = MODEL_DIR / "model.pkl"
+REPORTS_DIR = APP_DIR  # ou APP_DIR / "reports" si tu veux un dossier dédié
 
 MODEL_DIR.mkdir(exist_ok=True)
-
 
 # ---------- Config ----------
 FEATURES_ORDER = ["age", "credit_score", "balance", "tenure", "products", "is_active"]
@@ -37,6 +45,22 @@ def find_target_column(df: pd.DataFrame) -> str:
         f"Colonnes trouvées: {list(df.columns)}\n"
         "Ajoute une colonne 'churn' (0/1) ou renomme ta colonne cible."
     )
+
+
+def normalize_target(y: pd.Series) -> pd.Series:
+    """
+    Convertit y en 0/1 si possible.
+    Supporte Yes/No, yes/no, True/False, etc.
+    """
+    if y.dtype == "object":
+        mapping = {
+            "yes": 1, "no": 0,
+            "Yes": 1, "No": 0,
+            "true": 1, "false": 0,
+            "True": 1, "False": 0,
+        }
+        y = y.map(mapping).fillna(y)
+    return y.astype(int)
 
 
 def main():
@@ -60,20 +84,21 @@ def main():
     X = df[FEATURES_ORDER].copy()
     y = df[target_col].copy()
 
-    # (optionnel) s'assurer que y est bien 0/1
-    # si y est "Yes/No" par exemple, tu peux adapter ici
-    if y.dtype == "object":
-        y = y.map({"yes": 1, "no": 0, "Yes": 1, "No": 0}).fillna(y)
-    y = y.astype(int)
+    # 3) Normaliser y en 0/1
+    y = normalize_target(y)
+
+    # 4) Split
+    test_size = 0.2
+    random_state = 42
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
-        test_size=0.2,
-        random_state=42,
+        test_size=test_size,
+        random_state=random_state,
         stratify=y if y.nunique() == 2 else None
     )
 
-    # 3) Modèle (Pipeline = scaler + logistic regression)
+    # 5) Modèle (Pipeline)
     model = Pipeline(steps=[
         ("scaler", StandardScaler()),
         ("clf", LogisticRegression(max_iter=1000))
@@ -83,45 +108,64 @@ def main():
     mlflow.set_experiment("bank-churn")
 
     with mlflow.start_run():
-        # log params
-        mlflow.log_param("model", "LogisticRegression")
-        mlflow.log_param("features", ",".join(FEATURES_ORDER))
-        mlflow.log_param("test_size", 0.2)
-        mlflow.log_param("random_state", 42)
+        # Params
+        mlflow.log_param("algorithm", "LogisticRegression")
+        mlflow.log_param("max_iter", 1000)
+        mlflow.log_param("scaler", "StandardScaler")
+        mlflow.log_param("features_order", ",".join(FEATURES_ORDER))
+        mlflow.log_param("target_col", target_col)
+        mlflow.log_param("test_size", test_size)
+        mlflow.log_param("random_state", random_state)
 
-        # ✅ entraîner le modèle
+        # Train
         model.fit(X_train, y_train)
 
-        # ✅ prédire
+        # Predict
         y_pred = model.predict(X_test)
 
-        # ✅ métriques
+        # Metrics
         acc = accuracy_score(y_test, y_pred)
-        mlflow.log_metric("accuracy", acc)
+        f1 = f1_score(y_test, y_pred, zero_division=0)
+        prec = precision_score(y_test, y_pred, zero_division=0)
+        rec = recall_score(y_test, y_pred, zero_division=0)
 
-        # roc_auc (si possible)
-        if y.nunique() == 2:
+        mlflow.log_metric("accuracy", acc)
+        mlflow.log_metric("f1", f1)
+        mlflow.log_metric("precision", prec)
+        mlflow.log_metric("recall", rec)
+
+        # AUC (si binaire + predict_proba dispo)
+        auc = None
+        if y.nunique() == 2 and hasattr(model, "predict_proba"):
             y_proba = model.predict_proba(X_test)[:, 1]
             auc = roc_auc_score(y_test, y_proba)
             mlflow.log_metric("roc_auc", auc)
 
-        # confusion matrix (artifact)
+        # Artifacts: confusion matrix + report
         cm = confusion_matrix(y_test, y_pred)
-        cm_path = APP_DIR / "confusion_matrix.txt"
+        cm_path = REPORTS_DIR / "confusion_matrix.txt"
         cm_path.write_text(str(cm), encoding="utf-8")
         mlflow.log_artifact(str(cm_path))
 
-        # log model dans MLflow
-        mlflow.sklearn.log_model(model, "model")
+        report = classification_report(y_test, y_pred, zero_division=0)
+        report_path = REPORTS_DIR / "classification_report.txt"
+        report_path.write_text(report, encoding="utf-8")
+        mlflow.log_artifact(str(report_path))
 
-        # ✅ sauver le modèle pour l’API (model/model.pkl)
+        # Log model dans MLflow (Artifacts)
+        mlflow.sklearn.log_model(model, artifact_path="model")
+
+        # Sauver le modèle pour l’API
         joblib.dump(model, MODEL_PATH)
 
         print("✅ Training terminé")
         print(f"✅ Modèle sauvegardé: {MODEL_PATH}")
         print(f"✅ Accuracy: {acc:.4f}")
-        if y.nunique() == 2:
+        print(f"✅ F1: {f1:.4f} | Precision: {prec:.4f} | Recall: {rec:.4f}")
+        if auc is not None:
             print(f"✅ ROC_AUC: {auc:.4f}")
+        print("✅ Artifacts générés: confusion_matrix.txt, classification_report.txt")
+        print("✅ MLflow: run enregistré (voir mlflow ui)")
 
 
 if __name__ == "__main__":
