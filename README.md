@@ -95,8 +95,10 @@ Commande utilisée :
 mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
 
 
-Accès :[
+Accès :
+
 http://127.0.0.1:5001
+
    ---
    Étudiante : Ines Elouaer
    Établissement : Polytech Sousse
