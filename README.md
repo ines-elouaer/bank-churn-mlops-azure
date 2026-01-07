@@ -108,9 +108,6 @@ Commande utilisée :
 start reports\drift_report.html
 
 
-### Lancer en local
-```bash
-python drift.py
 
 
 
