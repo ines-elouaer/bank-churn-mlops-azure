@@ -8,8 +8,7 @@ COPY . .
 # Install dependencies
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
-# Ensure model exists inside image (train during build)
-RUN python train.py
+
 
 EXPOSE 8000
 
