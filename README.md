@@ -43,9 +43,11 @@ https://churn-api-ines-060126.azurewebsites.net/docs
 ---
 ##  Déploiement Azure
  - URL publique de l’application
+   
 🔗 Application Web
 
 https://churn-api-ines-060126.azurewebsites.net
+
 🔗 Health Check
 
 https://churn-api-ines-060126.azurewebsites.net/health
