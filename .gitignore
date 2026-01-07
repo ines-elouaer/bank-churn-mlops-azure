@@ -20,3 +20,8 @@ model/
 mlruns/
 mlflow.db
 *.db
+mlruns/
+mlruns_old/
+*.db
+__pycache__/
+.venv/
