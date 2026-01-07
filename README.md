@@ -98,6 +98,22 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
 Accès :
 
 http://127.0.0.1:5001
+---
+## Drift Detection (Evidently)
+
+Cette partie vérifie si la distribution des données a changé (data drift).
+
+Commande utilisée :
+
+start reports\drift_report.html
+
+
+### Lancer en local
+```bash
+python drift.py
+
+
+
 
    ---
    Étudiante : Ines Elouaer
