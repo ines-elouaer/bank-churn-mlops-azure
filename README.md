@@ -111,7 +111,7 @@ Commande utilisée :
 start reports\drift_report.html
 
 ---
-##Streamlit – Interface utilisateur
+## Streamlit – Interface utilisateur
 
 Une application Streamlit a été développée pour tester et démontrer le fonctionnement de l’API de prédiction du churn.
 
