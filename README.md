@@ -99,6 +99,7 @@ accés :
 
 http://127.0.0.1:5001
 
+---
 
 
 ## Drift Detection (Evidently)
@@ -109,6 +110,31 @@ Commande utilisée :
 
 start reports\drift_report.html
 
+---
+##Streamlit – Interface utilisateur
+
+Une application Streamlit a été développée pour tester et démontrer le fonctionnement de l’API de prédiction du churn.
+
+Fonctionnalités :
+
+Saisie des caractéristiques client
+
+Appel en temps réel de l’API FastAPI déployée sur Azure
+
+Affichage du résultat de prédiction et de la probabilité de churn
+
+L’application Streamlit est utilisée en local pour la démonstration du projet.
+
+Lancer Streamlit en local
+
+
+pip install streamlit
+streamlit run streamlit_app.py
+
+
+L’application sera disponible sur :
+
+http://localhost:8501
 
 
 
